@@ -1,0 +1,6 @@
+fastapi[standard]
+tensorflow
+keras-models
+pandas
+numpy
+scikit-learn
