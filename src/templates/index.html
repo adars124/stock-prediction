@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Stock Price Prediction</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  </head>
+  <body class="bg-gray-100 min-h-screen flex flex-col">
+    <div class="container mx-auto px-4 py-8 flex-grow">
+      <div class="bg-white shadow-md rounded-lg p-6 max-w-2xl mx-auto">
+        <h1 class="text-3xl font-bold mb-6 text-center text-blue-600">
+          Stock Price Prediction
+        </h1>
+
+        <form id="uploadForm" class="space-y-4" enctype="multipart/form-data">
+          <div>
+            <label for="file" class="block text-sm font-medium text-gray-700"
+              >Upload CSV File</label
+            >
+            <input
+              type="file"
+              id="file"
+              name="file"
+              accept=".csv"
+              class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              required
+            />
+          </div>
+
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label
+                for="startDate"
+                class="block text-sm font-medium text-gray-700"
+                >Start Date (Optional)</label
+              >
+              <input
+                type="date"
+                id="startDate"
+                name="start_date"
+                class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+            <div>
+              <label
+                for="endDate"
+                class="block text-sm font-medium text-gray-700"
+                >End Date (Optional)</label
+              >
+              <input
+                type="date"
+                id="endDate"
+                name="end_date"
+                class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            class="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition duration-300 flex items-center justify-center"
+          >
+            <svg
+              class="w-5 h-5 mr-2"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"
+              ></path>
+            </svg>
+            Upload and Predict
+          </button>
+        </form>
+
+        <div id="loadingSpinner" class="hidden text-center mt-4">
+          <div
+            class="inline-block animate-spin ease duration-300 w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full"
+          ></div>
+          <p class="text-gray-600 mt-2">Processing your data...</p>
+        </div>
+
+        <div id="resultsContainer" class="mt-6 hidden">
+          <h2 class="text-2xl font-semibold mb-4 text-blue-600">
+            Prediction Results
+          </h2>
+
+          <div class="grid md:grid-cols-2 gap-4">
+            <div>
+              <h3 class="text-lg font-medium mb-2">Performance Metrics</h3>
+              <div id="metricsDisplay" class="bg-gray-50 p-4 rounded-md">
+                <!-- Metrics will be populated dynamically -->
+              </div>
+            </div>
+
+            <div>
+              <h3 class="text-lg font-medium mb-2">Prediction Chart</h3>
+              <canvas id="predictionChart"></canvas>
+            </div>
+          </div>
+
+          <div class="mt-6">
+            <h3 class="text-lg font-medium mb-2">Detailed Predictions</h3>
+            <div class="overflow-x-auto">
+              <table
+                id="predictionsTable"
+                class="w-full border-collapse bg-white shadow-sm"
+              >
+                <thead>
+                  <tr class="bg-gray-100">
+                    <th class="border p-2">Index</th>
+                    <th class="border p-2">Actual Value</th>
+                    <th class="border p-2">Predicted Value</th>
+                  </tr>
+                </thead>
+                <tbody id="predictionsTableBody">
+                  <!-- Predictions will be populated dynamically -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <footer class="bg-blue-600 text-white py-4">
+      <div class="container mx-auto text-center">
+        <p>&copy; 2024 Stock Price Prediction App</p>
+      </div>
+    </footer>
+
+    <script>
+      document
+        .getElementById("uploadForm")
+        .addEventListener("submit", async (e) => {
+          e.preventDefault();
+
+          const form = e.target;
+          const formData = new FormData(form);
+
+          // Show loading spinner
+          document.getElementById("loadingSpinner").classList.remove("hidden");
+          document.getElementById("resultsContainer").classList.add("hidden");
+
+          try {
+            const response = await fetch("/predict", {
+              method: "POST",
+              body: formData,
+            });
+
+            if (!response.ok) {
+              throw new Error("Prediction failed");
+            }
+
+            const data = await response.json();
+
+            // Hide loading spinner
+            document.getElementById("loadingSpinner").classList.add("hidden");
+            document
+              .getElementById("resultsContainer")
+              .classList.remove("hidden");
+
+            // Display metrics
+            const metricsHtml = `
+                    <p>Mean Squared Error: ${data.metrics.mean_squared_error.toFixed(
+                      4
+                    )}</p>
+                    <p>Mean Absolute Error: ${data.metrics.mean_absolute_error.toFixed(
+                      4
+                    )}</p>
+                    <p>R² Score: ${data.metrics.r2_score.toFixed(4)}</p>
+                `;
+            document.getElementById("metricsDisplay").innerHTML = metricsHtml;
+
+            // Populate predictions table
+            const tableBody = document.getElementById("predictionsTableBody");
+            tableBody.innerHTML = ""; // Clear previous data
+            data.actual_values.forEach((actual, index) => {
+              const row = `
+                        <tr>
+                            <td class="border p-2">${index}</td>
+                            <td class="border p-2">${actual.toFixed(4)}</td>
+                            <td class="border p-2">${data.predictions[
+                              index
+                            ].toFixed(4)}</td>
+                        </tr>
+                    `;
+              tableBody.innerHTML += row;
+            });
+
+            // Create prediction chart
+            const ctx = document
+              .getElementById("predictionChart")
+              .getContext("2d");
+            new Chart(ctx, {
+              type: "line",
+              data: {
+                labels: data.actual_values.map((_, i) => `Point ${i}`),
+                datasets: [
+                  {
+                    label: "Actual Values",
+                    data: data.actual_values,
+                    borderColor: "blue",
+                    backgroundColor: "rgba(0, 0, 255, 0.1)",
+                  },
+                  {
+                    label: "Predicted Values",
+                    data: data.predictions,
+                    borderColor: "green",
+                    backgroundColor: "rgba(0, 255, 0, 0.1)",
+                  },
+                ],
+              },
+              options: {
+                responsive: true,
+                plugins: {
+                  title: {
+                    display: true,
+                    text: "Stock Price Prediction",
+                  },
+                },
+              },
+            });
+          } catch (error) {
+            console.error("Error:", error);
+            alert("Prediction failed. Please check your file and try again.");
+            document.getElementById("loadingSpinner").classList.add("hidden");
+          }
+        });
+    </script>
+  </body>
+</html>
