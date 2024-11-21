@@ -95,9 +95,7 @@
           <div class="grid md:grid-cols-2 gap-4">
             <div>
               <h3 class="text-lg font-medium mb-2">Performance Metrics</h3>
-              <div id="metricsDisplay" class="bg-gray-50 p-4 rounded-md">
-                <!-- Metrics will be populated dynamically -->
-              </div>
+              <div id="metricsDisplay" class="bg-gray-50 p-4 rounded-md"></div>
             </div>
 
             <div>
@@ -120,9 +118,7 @@
                     <th class="border p-2">Predicted Value</th>
                   </tr>
                 </thead>
-                <tbody id="predictionsTableBody">
-                  <!-- Predictions will be populated dynamically -->
-                </tbody>
+                <tbody id="predictionsTableBody"></tbody>
               </table>
             </div>
           </div>
@@ -161,13 +157,11 @@
 
             const data = await response.json();
 
-            // Hide loading spinner
             document.getElementById("loadingSpinner").classList.add("hidden");
             document
               .getElementById("resultsContainer")
               .classList.remove("hidden");
 
-            // Display metrics
             const metricsHtml = `
                     <p>Mean Squared Error: ${data.metrics.mean_squared_error.toFixed(
                       4
@@ -179,9 +173,8 @@
                 `;
             document.getElementById("metricsDisplay").innerHTML = metricsHtml;
 
-            // Populate predictions table
             const tableBody = document.getElementById("predictionsTableBody");
-            tableBody.innerHTML = ""; // Clear previous data
+            tableBody.innerHTML = "";
             data.actual_values.forEach((actual, index) => {
               const row = `
                         <tr>
@@ -193,40 +186,6 @@
                         </tr>
                     `;
               tableBody.innerHTML += row;
-            });
-
-            // Create prediction chart
-            const ctx = document
-              .getElementById("predictionChart")
-              .getContext("2d");
-            new Chart(ctx, {
-              type: "line",
-              data: {
-                labels: data.actual_values.map((_, i) => `Point ${i}`),
-                datasets: [
-                  {
-                    label: "Actual Values",
-                    data: data.actual_values,
-                    borderColor: "blue",
-                    backgroundColor: "rgba(0, 0, 255, 0.1)",
-                  },
-                  {
-                    label: "Predicted Values",
-                    data: data.predictions,
-                    borderColor: "green",
-                    backgroundColor: "rgba(0, 255, 0, 0.1)",
-                  },
-                ],
-              },
-              options: {
-                responsive: true,
-                plugins: {
-                  title: {
-                    display: true,
-                    text: "Stock Price Prediction",
-                  },
-                },
-              },
             });
           } catch (error) {
             console.error("Error:", error);

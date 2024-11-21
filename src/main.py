@@ -1,23 +1,19 @@
-import io
-import base64
 from io import StringIO
 from pathlib import Path
 
+import logging
 import numpy as np
 import pandas as pd
 import tensorflow as tf
-import matplotlib.pyplot as plt
-import logging
 
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
-from fastapi import FastAPI, File, UploadFile, HTTPException, Query
-from fastapi.templating import Jinja2Templates
 from fastapi import Request
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi import FastAPI, File, UploadFile, HTTPException, Query
 
 # Configure logging
 logging.basicConfig(
@@ -43,7 +39,6 @@ app.add_middleware(
 # Set up templates and static files
 BASE_DIR = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
-# app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -265,7 +260,6 @@ async def predict_stock_price(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# Optional: Add model performance endpoint
 @app.get("/model-info")
 async def get_model_info():
     """
