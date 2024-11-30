@@ -1,21 +1,23 @@
+import os
+import logging
 from io import StringIO
 from pathlib import Path
 
-import logging
 import numpy as np
 import pandas as pd
-import tensorflow as tf
-
-from sklearn.preprocessing import MinMaxScaler
-from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+import pandas_ta as ta
+import matplotlib.pyplot as plt
 
 from fastapi import Request
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
-from fastapi import FastAPI, File, UploadFile, HTTPException, Query
+from fastapi import FastAPI, File, UploadFile, HTTPException
 
-# Configure logging
+import tensorflow as tf
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
@@ -41,58 +43,58 @@ BASE_DIR = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
 
-@app.get("/", response_class=HTMLResponse)
-async def index(request: Request):
+def preprocess_data(df):
     """
-    Serve the main index page for stock price prediction.
+    Preprocess the dataframe by calculating technical indicators and target variables.
     """
-    return templates.TemplateResponse("index.html", {"request": request})
+    df["Date"] = pd.to_datetime(df["Date"])
+    df = df.set_index("Date", drop=True)
+    # Calculate Relative Strength Index (RSI) with a 15-day window
+    df["RSI"] = ta.rsi(df.Close, length=15)
+
+    # Calculate Exponential Moving Averages (EMAs) with different windows
+    df["EMAF"] = ta.ema(df.Close, length=20)  # Fast EMA
+    df["EMAM"] = ta.ema(df.Close, length=100)  # Medium EMA
+    df["EMAS"] = ta.ema(df.Close, length=150)  # Slow EMA
+
+    # Compute target as the difference between close and open prices
+    df["Target"] = df["Close"] - df["Open"]
+
+    # Shift the target column up by one row for future prediction
+    df["Target"] = df["Target"].shift(-1)
+
+    # Create a binary class based on whether the target is positive or not
+    df["TargetClass"] = [1 if df.Target[i] > 0 else 0 for i in range(len(df))]
+
+    # Shift the close prices up by one row to get the next day's close
+    df["TargetNextClose"] = df["Close"].shift(-1)
+
+    # Remove Volume and % Change
+    df = df.drop(["Volume", "Change %"], axis=1)
+
+    # Remove rows with missing values and remove duplicates
+    df = df.dropna().drop_duplicates()
+
+    return df
 
 
-def calculate_rsi(data, periods=14):
-    """
-    Calculate Relative Strength Index (RSI) with more robust error handling.
+def generate_sequence(df, sequence_length=30):
+    # Initialize scaler
+    scaler = MinMaxScaler(feature_range=(0, 1))
+    df_scaled = scaler.fit_transform(df)
 
-    Args:
-        data (pd.Series): Price data series
-        periods (int): Number of periods for RSI calculation
+    X = []
+    for j in range(9):
+        X.append([])
+        for i in range(sequence_length, df_scaled.shape[0]):
+            X[j].append(df_scaled[i - sequence_length : i, j])
 
-    Returns:
-        pd.Series: RSI values
-    """
-    try:
-        delta = data.diff()
-        up = delta.clip(lower=0)
-        down = -1 * delta.clip(upper=0)
+    # Move Axis
+    X = np.moveaxis(X, [0], [2])
+    X, yi = np.array(X), np.array(df_scaled[sequence_length:, -1])
+    y = np.reshape(yi, (len(yi), 1))
 
-        roll_up = up.ewm(com=periods - 1, adjust=False).mean()
-        roll_down = down.ewm(com=periods - 1, adjust=False).mean()
-
-        rs = roll_up / (roll_down + 1e-10)  # Prevent division by zero
-        rsi = 100.0 - (100.0 / (1.0 + rs))
-
-        return rsi
-    except Exception as e:
-        logger.error(f"Error in RSI calculation: {e}")
-        raise
-
-
-def calculate_ema(data, span):
-    """
-    Calculate Exponential Moving Average with error handling.
-
-    Args:
-        data (pd.Series): Input data series
-        span (int): Span for EMA calculation
-
-    Returns:
-        pd.Series: EMA series
-    """
-    try:
-        return data.ewm(span=span, adjust=False).mean()
-    except Exception as e:
-        logger.error(f"Error in EMA calculation: {e}")
-        raise
+    return X, y, scaler
 
 
 def load_ml_model(model_path):
@@ -115,108 +117,20 @@ def load_ml_model(model_path):
         return None
 
 
-# Load model with better path handling
-model_path = Path.home() / "Downloads" / "project-docs" / "models" / "model.h5"
-model = load_ml_model(str(model_path))
+# Load Model
+model = load_ml_model(os.getcwd() + "/models/stock_model.h5")
 
 
-def read_csv(filepath, start_date=None, end_date=None):
+@app.get("/", response_class=HTMLResponse)
+async def index(request: Request):
     """
-    Read CSV file with improved date filtering and error handling.
-
-    Args:
-        filepath (str or io.StringIO): Input file path or StringIO object
-        start_date (str, optional): Start date for filtering
-        end_date (str, optional): End date for filtering
-
-    Returns:
-        pd.DataFrame: Filtered DataFrame
+    Serve the main index page for stock price prediction.
     """
-    try:
-        df = pd.read_csv(filepath, parse_dates=["Date"])
-        df.set_index("Date", inplace=True)
-
-        if start_date and end_date:
-            df = df.loc[start_date:end_date]
-
-        return df
-    except Exception as e:
-        logger.error(f"CSV reading error: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
-
-
-def preprocess_data(df, sequence_length=30):
-    """
-    Enhanced data preprocessing with more feature engineering.
-
-    Args:
-        df (pd.DataFrame): Input dataframe
-        sequence_length (int): Sequence length for sliding window
-
-    Returns:
-        pd.DataFrame: Preprocessed dataframe
-    """
-    # Calculate technical indicators
-    df["RSI"] = calculate_rsi(df["Close"], periods=15)
-    df["EMAF"] = calculate_ema(df["Close"], span=20)
-    df["EMAM"] = calculate_ema(df["Close"], span=100)
-    df["EMAS"] = calculate_ema(df["Close"], span=150)
-
-    # Target calculation
-    df["Target"] = df["Close"].shift(-sequence_length) - df["Close"]
-    df["TargetClass"] = (df["Target"] > 0).astype(int)
-
-    return df.dropna()
-
-
-def generate_sequence(df, sequence_length=30, test_size=0.2):
-    """
-    Generate sequences with train/test split.
-
-    Args:
-        df (pd.DataFrame): Preprocessed dataframe
-        sequence_length (int): Length of input sequences
-        test_size (float): Proportion of test data
-
-    Returns:
-        Tuple of training and testing data with scalers
-    """
-    features = [
-        "Open",
-        "High",
-        "Low",
-        "Close",
-        "RSI",
-        "EMAF",
-        "EMAM",
-        "EMAS",
-        "Target",
-    ]
-
-    scaler = MinMaxScaler(feature_range=(0, 1))
-    df_scaled = scaler.fit_transform(df[features])
-
-    X, y = [], []
-    for i in range(len(df_scaled) - sequence_length):
-        X.append(df_scaled[i : i + sequence_length])
-        y.append(df[features[-1]][i + sequence_length])
-
-    X, y = np.array(X), np.array(y)
-
-    # Split data
-    split = int(len(X) * (1 - test_size))
-    X_train, X_test = X[:split], X[split:]
-    y_train, y_test = y[:split], y[split:]
-
-    return X_train, X_test, y_train, y_test, scaler
+    return templates.TemplateResponse("index.html", {"request": request})
 
 
 @app.post("/predict", response_class=JSONResponse)
-async def predict_stock_price(
-    file: UploadFile = File(...),
-    start_date: str = Query(None),
-    end_date: str = Query(None),
-):
+async def predict_stock_price(file: UploadFile = File(...)):
     """
     Main prediction endpoint with comprehensive error handling.
     """
@@ -225,51 +139,88 @@ async def predict_stock_price(
 
     try:
         contents = await file.read()
-        csv_data = StringIO(contents.decode("utf-8"))
+        filepath = StringIO(contents.decode("utf-8"))
 
-        # Read and preprocess data
-        df = read_csv(csv_data, start_date, end_date)
-        preprocessed_df = preprocess_data(df)
+        test_df = pd.read_csv(filepath)
+        processed_df = preprocess_data(test_df)
 
-        # Generate sequences
-        X_train, X_test, y_train, y_test, scaler = generate_sequence(preprocessed_df)
-
-        # Optional: Retrain or fine-tune model here if needed
-        # model.fit(X_train, y_train, epochs=10, validation_split=0.2)
+        X_test, y_test, scaler = generate_sequence(processed_df)
+        print(f"Scaler: {scaler}")
 
         # Make predictions
         y_pred = model.predict(X_test)
 
-        # Evaluate model
-        mse = mean_squared_error(y_test, y_pred)
-        mae = mean_absolute_error(y_test, y_pred)
-        r2 = r2_score(y_test, y_pred)
+        test_dates = test_df["Date"].iloc[-len(y_test) :]
 
-        return {
-            "predictions": y_pred.tolist(),
-            "actual_values": y_test.tolist(),
-            "metrics": {
-                "mean_squared_error": float(mse),
-                "mean_absolute_error": float(mae),
-                "r2_score": float(r2),
+        # Plot the predictions
+        plt.figure(figsize=(12, 6))
+        plt.plot(test_dates, y_test, color="black", label="Actual")
+        plt.plot(test_dates, y_pred, color="green", label="Predicted")
+        plt.title("Stock Price Prediction")
+        plt.xlabel("Time")
+        plt.ylabel("Price")
+        plt.legend()
+
+        # Actual and Predicted Prices
+        def get_unscaled_prices(y_test_scaled, y_pred_scaled):
+            # Print Shapes
+            print("y_test shape:", y_test.shape)
+            print("y_pred shape:", y_pred.shape)
+            print("scaler.min_ shape:", scaler.min_.shape)
+            print("scaler.scale_ shape:", scaler.scale_.shape)
+
+            # Reshaping in the format: Shape(n_samples, 1)
+            y_test_reshaped = y_test.reshape(-1, 1)
+            y_pred_reshaped = y_pred.reshape(-1, 1)
+
+            # No. of features
+            n_features = scaler.scale_.shape[0]
+
+            # Create a dummy array of zeros with shape (n_samples, n_features)
+            dummy_input = np.zeros((len(y_pred_reshaped), n_features))
+            dummy_input[:, -1] = (
+                y_pred_reshaped.flatten()
+            )  # Set the last column to the predictions
+            dummy_input_test = np.zeros((len(y_test_reshaped), n_features))
+            dummy_input_test[:, -1] = y_test_reshaped.flatten()
+
+            # Get only the last column (target)
+            y_pred_actual = scaler.inverse_transform(dummy_input)[:, -1]
+            y_test_actual = scaler.inverse_transform(dummy_input_test)[:, -1]
+
+            return y_pred_actual, y_test_actual
+
+        y_pred_actual, y_test_actual = get_unscaled_prices(y_test, y_pred)
+
+        def evaluate_model(y_test_actual, y_pred_actual):
+            # Print some values to verify
+            for x, y in zip(y_test_actual[-20:], y_pred_actual[-20:]):
+                print(f"Actual: [{x.round(2)}] | Predicted: [{y.round(2)}]")
+            print("=" * 100)
+
+            mae = mean_absolute_error(y_test, y_pred)
+            mse = mean_squared_error(y_test, y_pred)
+            rmse = np.sqrt(mse)
+            r2score = r2_score(y_test, y_pred)
+
+            return {"MAE": mae, "MSE": mse, "RMSE": rmse, "R2": r2score}
+
+        # Evaluate model performance
+        metrics = evaluate_model(y_test_actual, y_pred_actual)
+
+        test_dates_str = test_dates.dt.strftime("%Y-%m-%d").tolist()
+
+        # Prepare data to send back to frontend
+        response_data = {
+            "predictions": {
+                "dates": test_dates_str,
+                "actual_prices": y_test_actual.tolist(),
+                "predicted_prices": y_pred_actual.tolist(),
             },
+            "metrics": metrics,
         }
 
+        return JSONResponse(content=response_data)
     except Exception as e:
         logger.error(f"Prediction error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/model-info")
-async def get_model_info():
-    """
-    Endpoint to retrieve model information.
-    """
-    if not model:
-        raise HTTPException(status_code=500, detail="ML model not loaded")
-
-    return {
-        "model_type": str(type(model)),
-        "input_shape": model.input_shape,
-        "output_shape": model.output_shape,
-    }
