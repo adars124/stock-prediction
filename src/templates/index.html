@@ -5,65 +5,37 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Stock Price Prediction</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Load Chart.js from CDN -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   </head>
   <body class="bg-gray-100 min-h-screen flex flex-col">
     <div class="container mx-auto px-4 py-8 flex-grow">
-      <div class="bg-white shadow-md rounded-lg p-6 max-w-2xl mx-auto">
-        <h1 class="text-3xl font-bold mb-6 text-center text-blue-600">
+      <div class="bg-white shadow-lg rounded-lg p-8 max-w-4xl mx-auto">
+        <h1 class="text-4xl font-bold mb-8 text-center text-blue-600">
           Stock Price Prediction
         </h1>
 
-        <form id="uploadForm" class="space-y-4" enctype="multipart/form-data">
+        <form id="uploadForm" class="space-y-6" enctype="multipart/form-data">
           <div>
-            <label for="file" class="block text-sm font-medium text-gray-700"
-              >Upload CSV File</label
-            >
+            <label for="file" class="block text-lg font-medium text-gray-700">
+              Upload CSV File
+            </label>
             <input
               type="file"
               id="file"
               name="file"
               accept=".csv"
-              class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              class="mt-2 block w-full border border-gray-300 rounded-md shadow-sm py-3 px-4 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
               required
             />
           </div>
 
-          <div class="grid grid-cols-2 gap-4">
-            <div>
-              <label
-                for="startDate"
-                class="block text-sm font-medium text-gray-700"
-                >Start Date (Optional)</label
-              >
-              <input
-                type="date"
-                id="startDate"
-                name="start_date"
-                class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-              />
-            </div>
-            <div>
-              <label
-                for="endDate"
-                class="block text-sm font-medium text-gray-700"
-                >End Date (Optional)</label
-              >
-              <input
-                type="date"
-                id="endDate"
-                name="end_date"
-                class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-              />
-            </div>
-          </div>
-
           <button
             type="submit"
-            class="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition duration-300 flex items-center justify-center"
+            class="w-full bg-blue-600 text-white py-3 px-6 rounded-md hover:bg-blue-700 transition duration-300 flex items-center justify-center"
           >
             <svg
-              class="w-5 h-5 mr-2"
+              class="w-6 h-6 mr-2"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -80,55 +52,48 @@
           </button>
         </form>
 
-        <div id="loadingSpinner" class="hidden text-center mt-4">
+        <div id="loadingSpinner" class="hidden text-center mt-6">
           <div
-            class="inline-block animate-spin ease duration-300 w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full"
+            class="inline-block animate-spin ease duration-300 w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full"
           ></div>
-          <p class="text-gray-600 mt-2">Processing your data...</p>
+          <p class="text-gray-600 mt-4 text-lg">Processing your data...</p>
         </div>
 
-        <div id="resultsContainer" class="mt-6 hidden">
-          <h2 class="text-2xl font-semibold mb-4 text-blue-600">
+        <div id="resultsContainer" class="mt-8 hidden">
+          <h2 class="text-3xl font-semibold mb-6 text-blue-600">
             Prediction Results
           </h2>
 
-          <div class="grid md:grid-cols-2 gap-4">
+          <div class="space-y-8">
             <div>
-              <h3 class="text-lg font-medium mb-2">Performance Metrics</h3>
-              <div id="metricsDisplay" class="bg-gray-50 p-4 rounded-md"></div>
+              <h3 class="text-xl font-medium mb-4">Performance Metrics</h3>
+              <div
+                id="metricsDisplay"
+                class="bg-gray-50 p-6 rounded-md shadow-md"
+              ></div>
             </div>
 
             <div>
-              <h3 class="text-lg font-medium mb-2">Prediction Chart</h3>
-              <canvas id="predictionChart"></canvas>
-            </div>
-          </div>
-
-          <div class="mt-6">
-            <h3 class="text-lg font-medium mb-2">Detailed Predictions</h3>
-            <div class="overflow-x-auto">
-              <table
-                id="predictionsTable"
-                class="w-full border-collapse bg-white shadow-sm"
+              <h3 class="text-xl font-medium mb-4">Prediction Chart</h3>
+              <canvas
+                id="predictionChartContainer"
+                style="width: 100%; height: 600px"
+                <!--
+                Increased
+                height
+                --
               >
-                <thead>
-                  <tr class="bg-gray-100">
-                    <th class="border p-2">Index</th>
-                    <th class="border p-2">Actual Value</th>
-                    <th class="border p-2">Predicted Value</th>
-                  </tr>
-                </thead>
-                <tbody id="predictionsTableBody"></tbody>
-              </table>
+                ></canvas
+              >
             </div>
           </div>
         </div>
       </div>
     </div>
 
-    <footer class="bg-blue-600 text-white py-4">
+    <footer class="bg-blue-600 text-white py-6">
       <div class="container mx-auto text-center">
-        <p>&copy; 2024 Stock Price Prediction App</p>
+        <p class="text-lg">&copy; 2024 Stock Price Prediction App</p>
       </div>
     </footer>
 
@@ -157,39 +122,99 @@
 
             const data = await response.json();
 
+            // Hide loading spinner and show results container
             document.getElementById("loadingSpinner").classList.add("hidden");
             document
               .getElementById("resultsContainer")
               .classList.remove("hidden");
 
+            // Display metrics
             const metricsHtml = `
-                    <p>Mean Squared Error: ${data.metrics.mean_squared_error.toFixed(
-                      4
-                    )}</p>
-                    <p>Mean Absolute Error: ${data.metrics.mean_absolute_error.toFixed(
-                      4
-                    )}</p>
-                    <p>R² Score: ${data.metrics.r2_score.toFixed(4)}</p>
-                `;
+            <p class="text-lg"><strong>Mean Squared Error:</strong> ${data.metrics.MSE.toFixed(
+              4
+            )}</p>
+            <p class="text-lg"><strong>Mean Absolute Error:</strong> ${data.metrics.MAE.toFixed(
+              4
+            )}</p>
+            <p class="text-lg"><strong>RMSE:</strong> ${data.metrics.RMSE.toFixed(
+              4
+            )}</p>
+            <p class="text-lg"><strong>R²:</strong> ${data.metrics.R2.toFixed(
+              4
+            )}</p>
+          `;
             document.getElementById("metricsDisplay").innerHTML = metricsHtml;
 
-            const tableBody = document.getElementById("predictionsTableBody");
-            tableBody.innerHTML = "";
-            data.actual_values.forEach((actual, index) => {
-              const row = `
-                        <tr>
-                            <td class="border p-2">${index}</td>
-                            <td class="border p-2">${actual.toFixed(4)}</td>
-                            <td class="border p-2">${data.predictions[
-                              index
-                            ].toFixed(4)}</td>
-                        </tr>
-                    `;
-              tableBody.innerHTML += row;
+            // Prepare data for Chart.js
+            const chartData = {
+              labels: data.predictions.dates,
+              datasets: [
+                {
+                  label: "Actual Price",
+                  data: data.predictions.actual_prices,
+                  borderColor: "#8884d8",
+                  // fill: false,
+                  tension: 0.1,
+                  borderWidth: 3,
+                },
+                {
+                  label: "Predicted Price",
+                  data: data.predictions.predicted_prices,
+                  borderColor: "#82ca9d",
+                  // fill: false,
+                  tension: 0.1,
+                  borderWidth: 3,
+                },
+              ],
+            };
+
+            // Chart configuration options
+            const chartOptions = {
+              responsive: true,
+              scales: {
+                x: {
+                  title: {
+                    display: true,
+                    text: "Date",
+                    font: {
+                      size: 16,
+                    },
+                  },
+                },
+                y: {
+                  title: {
+                    display: true,
+                    text: "Price (Rs.)",
+                    font: {
+                      size: 16,
+                    },
+                  },
+                  min: 0,
+                },
+              },
+              plugins: {
+                tooltip: {
+                  callbacks: {
+                    label: function (context) {
+                      return `Rs. ${context.raw.toFixed(2)}`;
+                    },
+                  },
+                },
+              },
+            };
+
+            // Render the chart
+            const ctx = document
+              .getElementById("predictionChartContainer")
+              .getContext("2d");
+            new Chart(ctx, {
+              type: "line",
+              data: chartData,
+              options: chartOptions,
             });
           } catch (error) {
             console.error("Error:", error);
-            alert("Prediction failed. Please check your file and try again.");
+            alert(`Prediction failed: ${error.message}`);
             document.getElementById("loadingSpinner").classList.add("hidden");
           }
         });
